@@ -20,7 +20,7 @@ export function TransactionDialog({ hook, accounts }) {
 
   return (
     <Dialog open={transactionPopupOpen} onOpenChange={(open) => { if (!open) closeTransactionPopup(); }}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-120">
         <DialogHeader>
           <div className="flex items-center gap-4">
             <DialogTitle>Transaction</DialogTitle>
@@ -45,7 +45,8 @@ export function TransactionDialog({ hook, accounts }) {
 
         <div className="text-base flex flex-col mb-2">
           <label htmlFor="trc-value" className="text-xs font-medium text-slate-500 mb-1">Value</label>
-          <input className="border px-3 py-2 rounded-xl focus:outline-none text-base bg-white border-slate-200" type="text" name="value" id="trc-value" value={transactionForm.amount} onChange={(event) => {
+          <input className="border px-3 py-2 rounded-xl focus:outline-none text-base bg-white border-slate-200"  type="text"
+            inputMode="numeric" name="value" id="trc-value" value={transactionForm.amount} onChange={(event) => {
             const rawVal = event.target.value.replace(/\D/g, "");
             const formattedVal = rawVal ? myUtils.formatMoney(Number(rawVal)) : "0";
             setTransactionForm((current) => ({ ...current, amount: formattedVal }));
