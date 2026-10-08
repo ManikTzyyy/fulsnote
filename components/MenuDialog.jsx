@@ -36,6 +36,17 @@ export function MenuDialog({
             Analysis Dashboard
           </Link>
 
+          <Link
+            href="/analys/expense"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100/70 transition-all font-medium text-slate-700 text-sm"
+            onClick={() => onOpenChange(false)}
+          >
+            <div className="bg-red-100 text-red-900 w-8 h-8 flex items-center justify-center rounded-lg">
+              <DynamicIcon name="chart-pie" className="w-4 h-4" />
+            </div>
+            Expense by Account
+          </Link>
+
           <button
             type="button"
             className="flex items-center gap-3 px-4 py-3 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100/70 transition-all font-medium text-left text-slate-700 text-sm w-full"

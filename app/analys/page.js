@@ -12,6 +12,79 @@ import { myUtils } from "../../utils/utils.js";
 
 Chart.register(...registerables);
 
+function getPeriodInfo(date, groupBy) {
+  const [year, month, day] = date.split("-").map(Number);
+  const periodStart = new Date(year, month - 1, day);
+
+  if (groupBy === "week") {
+    periodStart.setDate(periodStart.getDate() - ((periodStart.getDay() + 6) % 7));
+  } else if (groupBy === "month") {
+    periodStart.setDate(1);
+  }
+
+  const key = myUtils.formatDate(periodStart);
+  if (groupBy === "month") {
+    return {
+      key,
+      label: periodStart.toLocaleDateString("id-ID", {
+        month: "short",
+        year: "numeric",
+      }),
+    };
+  }
+
+  if (groupBy === "week") {
+    const periodEnd = new Date(periodStart);
+    periodEnd.setDate(periodEnd.getDate() + 6);
+    const formatWeekDate = (value) =>
+      value.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "short",
+        ...(periodStart.getFullYear() !== periodEnd.getFullYear()
+          ? { year: "numeric" }
+          : {}),
+      });
+
+    return {
+      key,
+      label: `${formatWeekDate(periodStart)} - ${formatWeekDate(periodEnd)}`,
+    };
+  }
+
+  return {
+    key,
+    label: periodStart.toLocaleDateString("id-ID", {
+      day: "numeric",
+      month: "short",
+    }),
+  };
+}
+
+function aggregateTransactions(transactions, groupBy) {
+  const grouped = new Map();
+
+  transactions.forEach((transaction) => {
+    if (!["in", "ex"].includes(transaction.status)) return;
+
+    const period = getPeriodInfo(transaction.date, groupBy);
+    const item = grouped.get(period.key) ?? {
+      ...period,
+      income: 0,
+      expense: 0,
+    };
+
+    if (transaction.status === "in") {
+      item.income += transaction.amount;
+    } else {
+      item.expense += transaction.amount;
+    }
+
+    grouped.set(period.key, item);
+  });
+
+  return [...grouped.values()].sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export default function AnalysPage() {
   const [dateLabel, setDateLabel] = useState("");
   const [startDate, setStartDate] = useState(() => {
@@ -24,6 +97,7 @@ export default function AnalysPage() {
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     return myUtils.formatDate(lastDay);
   });
+  const [groupBy, setGroupBy] = useState("day");
   const [showIncome, setShowIncome] = useState(true);
   const [showExpense, setShowExpense] = useState(true);
   const [totalBalance, setTotalBalance] = useState(0);
@@ -51,15 +125,16 @@ export default function AnalysPage() {
       });
     }
 
-    const data = myUtils.extractDataToChart(filteredRawData);
-    const cashFlow = myUtils.extractCashFlow(data);
+    const data = aggregateTransactions(filteredRawData, groupBy);
 
-    const labels = data.map((item) => item.date);
+    const labels = data.map((item) => item.label);
     const income = data.map((item) => item.income);
     const expense = data.map((item) => item.expense);
-    const cashLabels = cashFlow.map((item) => item.date);
-    const cashBalances = cashFlow.map((item) => item.balance);
-
+    let balance = 0;
+    const cashBalances = data.map((item) => {
+      balance += item.income - item.expense;
+      return balance;
+    });
     const datasets = [];
 
     if (showIncome) {
@@ -87,7 +162,7 @@ export default function AnalysPage() {
     }
 
     if (cashChartInstanceRef.current) {
-      cashChartInstanceRef.current.data.labels = cashLabels;
+      cashChartInstanceRef.current.data.labels = labels;
       cashChartInstanceRef.current.data.datasets = [
         {
           label: "Balance",
@@ -98,7 +173,15 @@ export default function AnalysPage() {
       ];
       cashChartInstanceRef.current.update();
     }
-  }, [startDate, endDate, showIncome, showExpense, selectedAccountId]);
+
+  }, [
+    startDate,
+    endDate,
+    showIncome,
+    showExpense,
+    selectedAccountId,
+    groupBy,
+  ]);
 
   useEffect(() => {
     const now = new Date();
@@ -166,11 +249,7 @@ export default function AnalysPage() {
             x: {
               ticks: {
                 callback(value) {
-                  const label = this.getLabelForValue(value);
-                  return new Date(label).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                  });
+                  return this.getLabelForValue(value);
                 },
               },
             },
@@ -202,11 +281,7 @@ export default function AnalysPage() {
             x: {
               ticks: {
                 callback(value) {
-                  const label = this.getLabelForValue(value);
-                  return new Date(label).toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "short",
-                  });
+                  return this.getLabelForValue(value);
                 },
               },
             },
@@ -275,7 +350,7 @@ export default function AnalysPage() {
     if (chartsInitialized && startDate && endDate) {
       updateCharts();
     }
-  }, [chartsInitialized, startDate, endDate, showIncome, showExpense, updateCharts]);
+  }, [chartsInitialized, startDate, endDate, showIncome, showExpense, selectedAccountId, updateCharts]);
 
 
 
@@ -319,6 +394,31 @@ export default function AnalysPage() {
         <br />
 
         <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-gray-500">Group by</span>
+            <div className="flex gap-2" role="group" aria-label="Group transactions by period">
+              {[
+                { label: "Day", value: "day" },
+                { label: "Week", value: "week" },
+                { label: "Month", value: "month" },
+              ].map((range) => (
+                <button
+                  key={range.value}
+                  type="button"
+                  aria-pressed={groupBy === range.value}
+                  className={`px-4 py-1.5 rounded-full text-sm border ${
+                    groupBy === range.value
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : "bg-white border-slate-200 text-slate-700"
+                  }`}
+                  onClick={() => setGroupBy(range.value)}
+                >
+                  {range.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="flex gap-2 flex-wrap items-end">
             <div className="flex flex-col">
               <label htmlFor="start" className="text-sm text-gray-500">start date</label>
